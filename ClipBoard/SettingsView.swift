@@ -10,10 +10,12 @@ struct PresetButton: View {
             selectedPreset = title
         }) {
             Text(title)
-                .fontWeight(selectedPreset == title ? .bold : .regular)
+                .font(.system(size: 12, weight: selectedPreset == title ? .bold : .regular))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
                 .foregroundColor(selectedPreset == title ? .black : .white) // Black text if selected
                 .padding(.vertical, 8)
-                .padding(.horizontal, 16)
+                .frame(maxWidth: .infinity)
                 .background(selectedPreset == title ? Color.white : Color.black.opacity(0.3))
                 .cornerRadius(20)
                 .overlay(
@@ -33,9 +35,11 @@ struct PresetButton: View {
 
 struct SettingsView: View {
     @Binding var meshPreset: String
-    @Binding var customColors: [Color]
+    @Binding var scrollIntensity: String
+    @Binding var color1: Color
+    @Binding var color2: Color
+    @Binding var color3: Color
     var onClose: () -> Void
-    var saveCustomColors: () -> Void
     @State private var isCloseHovered = false
 
     var body: some View {
@@ -61,10 +65,34 @@ struct SettingsView: View {
                     .foregroundColor(.gray)
 
                 // Mood Buttons
-                HStack(spacing: 12) {
+                HStack(spacing: 6) {
                     ForEach(["Chrome", "Sunset", "Midnight", "Custom"], id: \.self) { preset in
                         PresetButton(title: preset, selectedPreset: $meshPreset)
                     }
+                }
+
+                if meshPreset == "Custom" {
+                    VStack(alignment: .leading, spacing: 14) {
+                        ColorPicker("First glow", selection: $color1, supportsOpacity: false)
+                        ColorPicker("Second glow", selection: $color2, supportsOpacity: false)
+                        ColorPicker("Background", selection: $color3, supportsOpacity: false)
+                        Text("Colors update instantly and save automatically.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .foregroundStyle(.white)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Scroll intensity")
+                        .font(.caption).foregroundStyle(.white.opacity(0.65))
+                    Picker("Scroll intensity", selection: $scrollIntensity) {
+                        ForEach(ScrollIntensity.allCases, id: \.rawValue) { intensity in
+                            Text(intensity.rawValue).tag(intensity.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
                 }
 
                 Divider().background(Color.white.opacity(0.2))
@@ -81,7 +109,7 @@ struct SettingsView: View {
                 .onHover { isCloseHovered = $0 }
                 .scaleEffect(isCloseHovered ? 1.05 : 1.0)
             }
-            .padding(30)
+            .padding(24)
             .background(.ultraThinMaterial)
             .cornerRadius(20)
             .overlay(
@@ -89,7 +117,7 @@ struct SettingsView: View {
                     .stroke(Color.white.opacity(0.1), lineWidth: 1)
             )
             .shadow(radius: 20)
-            .frame(maxWidth: 400)
+            .frame(maxWidth: 350)
         }
     }
 }

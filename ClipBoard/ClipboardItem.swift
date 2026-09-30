@@ -5,11 +5,22 @@ struct ClipboardItem: Identifiable, Equatable, Codable {
     let id: UUID
     let content: ClipboardContent
     let createdAt: Date
+    var isPinned: Bool = false
 
     init(id: UUID = UUID(), content: ClipboardContent, createdAt: Date = Date()) {
         self.id = id
         self.content = content
         self.createdAt = createdAt
+    }
+
+    enum CodingKeys: String, CodingKey { case id, content, createdAt, isPinned }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        content = try values.decode(ClipboardContent.self, forKey: .content)
+        createdAt = try values.decode(Date.self, forKey: .createdAt)
+        isPinned = try values.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
     }
 
     static func == (lhs: ClipboardItem, rhs: ClipboardItem) -> Bool {

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AnimatedMeshView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let colors: [Color]
     @State private var animate = false
 
@@ -17,7 +18,7 @@ struct AnimatedMeshView: View {
                     .blur(radius: 60)
                     .offset(x: animate ? -100 : 100, y: animate ? -50 : 50)
                     .animation(
-                        .easeInOut(duration: 5.0).repeatForever(autoreverses: true),
+                        reduceMotion ? nil : .easeInOut(duration: 5.0).repeatForever(autoreverses: true),
                         value: animate
                     )
 
@@ -28,13 +29,14 @@ struct AnimatedMeshView: View {
                     .blur(radius: 60)
                     .offset(x: animate ? 150 : -150, y: animate ? 100 : -100)
                     .animation(
-                        .easeInOut(duration: 7.0).repeatForever(autoreverses: true),
+                        reduceMotion ? nil : .easeInOut(duration: 7.0).repeatForever(autoreverses: true),
                         value: animate
                     )
             }
             .onAppear {
-                animate.toggle()
+                animate = !reduceMotion
             }
+            .onChange(of: reduceMotion) { _, reduced in animate = !reduced }
         }
         .drawingGroup() // Improves performance
         .ignoresSafeArea()

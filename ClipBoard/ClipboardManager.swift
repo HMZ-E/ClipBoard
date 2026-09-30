@@ -8,14 +8,24 @@ class ClipboardManager: ObservableObject {
     private var timer: Timer?
     private var lastChangeCount: Int
 
-    // Saves to a file instead of UserDefaults (Much safer!)
-    private let historyURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        .appendingPathComponent("clipboard_history.json")
+    private let historyURL: URL
+    private let pasteboard: NSPasteboard
+    @Published private(set) var recentlyDeleted: ClipboardItem?
+    private var deletedIndex = 0
+    private var undoTask: Task<Void, Never>?
 
-    init() {
-        self.lastChangeCount = NSPasteboard.general.changeCount
+    init(historyURL: URL? = nil, pasteboard: NSPasteboard = .general, monitor: Bool = true) {
+        self.historyURL = historyURL ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("clipboard_history.json")
+        self.pasteboard = pasteboard
+        self.lastChangeCount = self.pasteboard.changeCount
         loadHistory()
-        startMonitoring()
+        if monitor { startMonitoring() }
+    }
+
+    deinit {
+        timer?.invalidate()
+        undoTask?.cancel()
     }
 
     private func startMonitoring() {
@@ -25,10 +35,12 @@ class ClipboardManager: ObservableObject {
     }
 
     private func checkPasteboard() {
-        guard NSPasteboard.general.changeCount != lastChangeCount else { return }
+        guard pasteboard.changeCount != lastChangeCount else { return }
+
+        lastChangeCount = pasteboard.changeCount
 
         // 1. Check for Images first
-        if let image = NSPasteboard.general.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage {
+        if let image = pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage {
             if let tiff = image.tiffRepresentation,
                let bitmap = NSBitmapImageRep(data: tiff),
                let pngData = bitmap.representation(using: .png, properties: [:]) {
@@ -38,7 +50,7 @@ class ClipboardManager: ObservableObject {
             }
         }
         // 2. Check for Text
-        else if let text = NSPasteboard.general.string(forType: .string) {
+        else if let text = pasteboard.string(forType: .string) {
             if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 let newItem = ClipboardItem(content: .text(text), createdAt: Date())
                 // Prevent duplicate consecutive copies
@@ -51,13 +63,60 @@ class ClipboardManager: ObservableObject {
     private func add(_ item: ClipboardItem) {
         DispatchQueue.main.async {
             self.items.insert(item, at: 0)
-            self.lastChangeCount = NSPasteboard.general.changeCount
-            if self.items.count > 50 { self.items.removeLast() } // Keep last 50 items
+            self.lastChangeCount = self.pasteboard.changeCount
+            while self.items.filter({ !$0.isPinned }).count > 50 {
+                guard let index = self.items.lastIndex(where: { !$0.isPinned }) else { break }
+                self.items.remove(at: index)
+            }
             self.saveHistory()
         }
     }
 
+    func copy(_ item: ClipboardItem) -> Bool {
+        let success: Bool
+        switch item.content {
+        case .text(let text):
+            pasteboard.clearContents()
+            success = pasteboard.setString(text, forType: .string)
+        case .image(let data):
+            guard let image = NSImage(data: data) else { return false }
+            pasteboard.clearContents()
+            success = pasteboard.writeObjects([image])
+        }
+        lastChangeCount = pasteboard.changeCount
+        return success
+    }
+
+    func togglePin(_ item: ClipboardItem) {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+        items[index].isPinned.toggle()
+        saveHistory()
+    }
+
+    func delete(_ item: ClipboardItem) {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+        undoTask?.cancel()
+        recentlyDeleted = items.remove(at: index)
+        deletedIndex = index
+        saveHistory()
+        undoTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(6))
+            guard !Task.isCancelled else { return }
+            self?.recentlyDeleted = nil
+        }
+    }
+
+    func undoDelete() {
+        guard let item = recentlyDeleted else { return }
+        undoTask?.cancel()
+        items.insert(item, at: min(deletedIndex, items.count))
+        recentlyDeleted = nil
+        saveHistory()
+    }
+
     func clearHistory() {
+        undoTask?.cancel()
+        recentlyDeleted = nil
         items.removeAll()
         saveHistory()
     }
@@ -66,7 +125,7 @@ class ClipboardManager: ObservableObject {
         do {
             let data = try JSONEncoder().encode(items)
             try FileManager.default.createDirectory(at: historyURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try data.write(to: historyURL)
+            try data.write(to: historyURL, options: .atomic)
         } catch {
             print("Failed to save history: \(error)")
         }
