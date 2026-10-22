@@ -10,3 +10,9 @@ DerivedData/
 # Package Manager build folders
 .build/
 .swiftpm/
+
+# Windows port output and local reference checkout
+upstream/
+dist/
+artifacts/
+*.user

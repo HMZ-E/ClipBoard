@@ -2,6 +2,14 @@
 
 A native macOS menu bar clipboard manager built with SwiftUI and AppKit. Keep copied text and images close, pin favorites, and browse your history with the keyboard.
 
+## Windows version
+
+A native Windows 10/11 port is included in [`windows/`](windows/README.md), built with C# and WPF. It includes text/image history, pinned favorites, search, previews, Undo, animated themes and cards, and encrypted local storage.
+
+On Windows, clone this repository and double-click **`Run.cmd`**. It builds the app on the first launch using .NET Framework 4.8, then starts ClipBoard in the notification area. Press **Ctrl+Shift+V** to open or hide the panel. Choose **Settings → Animations → Full** for the moving background and full transitions.
+
+See the [Windows guide](windows/README.md) for building, testing, creating a portable ZIP, keyboard shortcuts, and storage details. The sections below describe the macOS version.
+
 ## Screenshots
 
 These screenshots use sample content rendered from the app’s SwiftUI views.
